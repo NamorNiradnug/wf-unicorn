@@ -79,7 +79,8 @@ class wf_unicorn_t : public wf::plugin_interface_t
     wf::effect_hook_t draw_unicorn = [this]() noexcept {
         const auto frambuffer = output->render->get_target_framebuffer();
         OpenGL::render_begin(frambuffer);
-        OpenGL::render_texture(wf::texture_t{unicorn_texture.tex}, frambuffer, unicorn_rect);
+        OpenGL::render_texture(wf::texture_t{unicorn_texture.tex}, frambuffer, unicorn_rect, glm::vec4(1.0f),
+                               OpenGL::TEXTURE_TRANSFORM_INVERT_Y);
         OpenGL::render_end();
     };
 
