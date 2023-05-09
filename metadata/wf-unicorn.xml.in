@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<wayfire>
+    <plugin name="wf-unicorn">
+        <_short>Unicorn</_short>
+        <category>Effects</category>
+
+        <option name="unicorn_activator" type="activator">
+            <_short>Unicorn Activator</_short>
+            <_long>🦄</_long>
+            <default>none</default>
+        </option>
+
+        <option name="unicorn_size" type="int">
+            <_short>Unicorn Size</_short>
+            <min>0</min>
+            <default>128</default>
+        </option>
+
+        <option name="unicorn_path" type="string">
+            <_short>Unicorn SVG Path</_short>
+            <hint>file</hint>
+            <default>@unicorn_svg@</default>
+        </option>
+    </plugin>
+</wayfire>

@@ -11,8 +11,7 @@
 
 cairo_surface_t *LoadSVG(const char *path, int surface_width, int surface_height)
 {
-    GError *error = nullptr;
-    auto *handle = rsvg_handle_new_from_file(path, &error);
+    auto *handle = rsvg_handle_new_from_file(path, nullptr);
 
     auto *surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, surface_width, surface_height);
     auto *cr = cairo_create(surface);
@@ -26,13 +25,8 @@ cairo_surface_t *LoadSVG(const char *path, int surface_width, int surface_height
 
     if (handle != nullptr)
     {
-        rsvg_handle_render_document(handle, cr, &viewport, &error);
+        rsvg_handle_render_document(handle, cr, &viewport, nullptr);
         g_object_unref(handle);
-    }
-
-    if (error != nullptr)
-    {
-        g_error_free(error);
     }
 
     cairo_destroy(cr);
@@ -43,6 +37,8 @@ cairo_surface_t *LoadSVG(const char *path, int surface_width, int surface_height
 class wf_unicorn_t : public wf::plugin_interface_t
 {
     wf::option_wrapper_t<wf::activatorbinding_t> launch_unicorn_activator{"wf-unicorn/unicorn_activator"};
+    wf::option_wrapper_t<std::string> unicorn_svg_path{"wf-unicorn/unicorn_path"};
+    wf::option_wrapper_t<int> unicorn_size{"wf-unicorn/unicorn_size"};
 
     wf::animation::simple_animation_t unicorn_position_animation = wf::animation::simple_animation_t();
 
@@ -84,6 +80,23 @@ class wf_unicorn_t : public wf::plugin_interface_t
         OpenGL::render_end();
     };
 
+    void reload_unicorn_texture()
+    {
+        auto *const unicorn_surface = LoadSVG(unicorn_svg_path.value().c_str(), unicorn_size, unicorn_size);
+        OpenGL::render_begin();
+        cairo_surface_upload_to_texture(unicorn_surface, unicorn_texture);
+        OpenGL::render_end();
+        cairo_surface_destroy(unicorn_surface);
+
+        unicorn_rect.width = unicorn_texture.width;
+        unicorn_rect.height = unicorn_texture.height;
+
+        if (unicorn_visible && hook_set)
+        {
+            output->render->damage(unicorn_rect);
+        }
+    }
+
     wf::simple_texture_t unicorn_texture;
 
     bool unicorn_visible = false;
@@ -95,21 +108,20 @@ class wf_unicorn_t : public wf::plugin_interface_t
         grab_interface->name = "wf-unicorn";
         grab_interface->capabilities = 0;
 
-        {
-            auto *const unicorn_surface = LoadSVG("/usr/share/wayfire/icons/plugin-wf-unicorn.svg", 128, 128);
-            OpenGL::render_begin();
-            cairo_surface_upload_to_texture(unicorn_surface, unicorn_texture);
-            OpenGL::render_end();
-            cairo_surface_destroy(unicorn_surface);
-            std::cout << unicorn_texture.width << ' ' << unicorn_texture.height << std::endl;
-        }
+        reload_unicorn_texture();
 
         unicorn_rect.x = 0;
         unicorn_rect.y = 0;
-        unicorn_rect.width = unicorn_texture.width;
-        unicorn_rect.height = unicorn_texture.height;
 
         output->add_activator(launch_unicorn_activator, &toggle_unicorn);
+
+        launch_unicorn_activator.set_callback([this] {
+            output->rem_binding(&toggle_unicorn);
+            output->add_activator(launch_unicorn_activator, &toggle_unicorn);
+        });
+
+        unicorn_svg_path.set_callback([this] { reload_unicorn_texture(); });
+        unicorn_size.set_callback([this] { reload_unicorn_texture(); });
     }
 
     void fini() override
