@@ -5,13 +5,14 @@ project(
   license: 'MIT',
   default_options: [
     'cpp_std=c++17',
-    'warning_level=everything'
+    'warning_level=1'
   ]
 )
 
 wayfire = dependency('wayfire')
 wlroots = dependency('wlroots')
 wfconfig = dependency('wf-config')
+rsvg = dependency('librsvg-2.0')
 
 add_project_arguments(['-DWLR_USE_UNSTABLE'], language: ['cpp', 'c'])
 add_project_arguments(['-DWAYFIRE_PLUGIN'], language: ['cpp', 'c'])
