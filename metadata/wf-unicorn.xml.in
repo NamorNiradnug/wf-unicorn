@@ -21,5 +21,11 @@
             <hint>file</hint>
             <default>@unicorn_svg@</default>
         </option>
+
+        <option name="unicorn_speed" type="int">
+            <_short>Unicorn Speed</_short>
+            <min>0</min>
+            <default>1000</default>
+        </option>
     </plugin>
 </wayfire>

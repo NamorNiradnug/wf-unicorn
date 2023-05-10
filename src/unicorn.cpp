@@ -4,10 +4,15 @@
 #include <wayfire/output.hpp>
 #include <wayfire/plugin.hpp>
 #include <wayfire/plugins/common/cairo-util.hpp>
+#include <wayfire/plugins/common/geometry-animation.hpp>
 #include <wayfire/render-manager.hpp>
-#include <wayfire/util/duration.hpp>
 
+#include <utility>
+
+extern "C"
+{
 #include <librsvg/rsvg.h>
+}
 
 cairo_surface_t *LoadSVG(const char *path, int surface_width, int surface_height)
 {
@@ -40,9 +45,18 @@ class wf_unicorn_t : public wf::plugin_interface_t
     wf::option_wrapper_t<std::string> unicorn_svg_path{"wf-unicorn/unicorn_path"};
     wf::option_wrapper_t<int> unicorn_size{"wf-unicorn/unicorn_size"};
 
-    wf::animation::simple_animation_t unicorn_position_animation = wf::animation::simple_animation_t();
+    wf::option_wrapper_t<int> unicorn_speed{"wf-unicorn/unicorn_speed"};
 
-    wf::geometry_t unicorn_rect;
+    wf::animation::simple_animation_t unicorn_x = wf::animation::simple_animation_t(unicorn_speed);
+    wf::animation::simple_animation_t unicorn_y = wf::animation::simple_animation_t(unicorn_speed);
+
+    wf::geometry_t unicorn_region() const
+    {
+        return {.x = static_cast<int>(unicorn_x - unicorn_texture.width / 2),
+                .y = static_cast<int>(unicorn_y - unicorn_texture.height / 2),
+                .width = unicorn_texture.width,
+                .height = unicorn_texture.height};
+    }
 
     wf::activator_callback toggle_unicorn = [this](auto) noexcept -> bool {
         unicorn_visible = !unicorn_visible;
@@ -54,6 +68,7 @@ class wf_unicorn_t : public wf::plugin_interface_t
             }
             if (!hook_set)
             {
+                output->render->add_effect(&update_unicorn_destination, wf::OUTPUT_EFFECT_PRE);
                 output->render->add_effect(&draw_unicorn, wf::OUTPUT_EFFECT_OVERLAY);
                 hook_set = true;
             }
@@ -63,20 +78,32 @@ class wf_unicorn_t : public wf::plugin_interface_t
             output->deactivate_plugin(grab_interface);
             if (hook_set)
             {
+                output->render->rem_effect(&update_unicorn_destination);
                 output->render->rem_effect(&draw_unicorn);
                 hook_set = false;
             }
         }
 
-        output->render->damage(unicorn_rect);
+        output->render->damage(unicorn_region());
         return true;
+    };
+
+    wf::effect_hook_t update_unicorn_destination = [this]() noexcept {
+        const auto [cursor_x, cursor_y] = output->get_cursor_position();
+        unicorn_x.animate(cursor_x);
+        unicorn_y.animate(cursor_y);
+        output->render->damage_whole();
     };
 
     wf::effect_hook_t draw_unicorn = [this]() noexcept {
         const auto frambuffer = output->render->get_target_framebuffer();
+        uint32_t bits = OpenGL::TEXTURE_TRANSFORM_INVERT_Y;
+        if (output->get_cursor_position().x > unicorn_x)
+        {
+            bits |= OpenGL::TEXTURE_TRANSFORM_INVERT_X;
+        }
         OpenGL::render_begin(frambuffer);
-        OpenGL::render_texture(wf::texture_t{unicorn_texture.tex}, frambuffer, unicorn_rect, glm::vec4(1.0f),
-                               OpenGL::TEXTURE_TRANSFORM_INVERT_Y);
+        OpenGL::render_texture(wf::texture_t{unicorn_texture.tex}, frambuffer, unicorn_region(), glm::vec4(1.0f), bits);
         OpenGL::render_end();
     };
 
@@ -88,12 +115,9 @@ class wf_unicorn_t : public wf::plugin_interface_t
         OpenGL::render_end();
         cairo_surface_destroy(unicorn_surface);
 
-        unicorn_rect.width = unicorn_texture.width;
-        unicorn_rect.height = unicorn_texture.height;
-
         if (unicorn_visible && hook_set)
         {
-            output->render->damage(unicorn_rect);
+            output->render->damage(unicorn_region());
         }
     }
 
@@ -110,8 +134,8 @@ class wf_unicorn_t : public wf::plugin_interface_t
 
         reload_unicorn_texture();
 
-        unicorn_rect.x = 0;
-        unicorn_rect.y = 0;
+        unicorn_x.set(0, 0);
+        unicorn_y.set(0, 0);
 
         output->add_activator(launch_unicorn_activator, &toggle_unicorn);
 
