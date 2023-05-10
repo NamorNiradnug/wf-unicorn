@@ -68,31 +68,40 @@ class wf_unicorn_t : public wf::plugin_interface_t
             }
             if (!hook_set)
             {
-                output->render->add_effect(&update_unicorn_destination, wf::OUTPUT_EFFECT_PRE);
+                output->render->add_effect(&pre_hook, wf::OUTPUT_EFFECT_PRE);
                 output->render->add_effect(&draw_unicorn, wf::OUTPUT_EFFECT_OVERLAY);
                 hook_set = true;
             }
         }
         else
         {
-            output->deactivate_plugin(grab_interface);
-            if (hook_set)
-            {
-                output->render->rem_effect(&update_unicorn_destination);
-                output->render->rem_effect(&draw_unicorn);
-                hook_set = false;
-            }
+            unicorn_x.animate(-unicorn_size);
+            unicorn_y.animate(-unicorn_size);
         }
 
         output->render->damage(unicorn_region());
         return true;
     };
 
-    wf::effect_hook_t update_unicorn_destination = [this]() noexcept {
-        const auto [cursor_x, cursor_y] = output->get_cursor_position();
-        unicorn_x.animate(cursor_x);
-        unicorn_y.animate(cursor_y);
-        output->render->damage_whole();
+    void set_unicorn_destination(double x, double y)
+    {
+        if (x != unicorn_x || y != unicorn_y)
+        {
+            unicorn_x.animate(x);
+            unicorn_y.animate(y);
+        }
+    }
+
+    wf::effect_hook_t pre_hook = [this]() noexcept {
+        if (unicorn_visible)
+        {
+            const auto [cursor_x, cursor_y] = output->get_cursor_position();
+            set_unicorn_destination(cursor_x, cursor_y);
+        }
+        if (unicorn_x.running() || unicorn_y.running())
+        {
+            output->render->damage_whole();
+        }
     };
 
     wf::effect_hook_t draw_unicorn = [this]() noexcept {
@@ -134,8 +143,8 @@ class wf_unicorn_t : public wf::plugin_interface_t
 
         reload_unicorn_texture();
 
-        unicorn_x.set(0, 0);
-        unicorn_y.set(0, 0);
+        unicorn_x.set(-unicorn_size, -unicorn_size);
+        unicorn_y.set(-unicorn_size, -unicorn_size);
 
         output->add_activator(launch_unicorn_activator, &toggle_unicorn);
 
